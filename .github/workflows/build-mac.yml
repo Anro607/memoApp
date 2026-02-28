@@ -1,0 +1,47 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Build macOS app with PyInstaller
+      run: |
+        pyinstaller --windowed \
+          --name "MemoApp" \
+          --icon "icon.icns" \
+          --add-data "assets:assets" \
+          --add-data "NanumGothic.ttf:." \
+          custom_memo_app_qt.py
+    
+    - name: Zip the app bundle
+      run: |
+        cd dist
+        zip -r "MemoApp-macOS.zip" "MemoApp.app"
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MemoApp-macOS-Build
+        path: dist/MemoApp-macOS.zip
+        retention-days: 30
