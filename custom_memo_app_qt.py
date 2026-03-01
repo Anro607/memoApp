@@ -7,15 +7,63 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QGraphicsScene, QGraphicsPixmapItem, QMenu,
                              QListWidget, QSizeGrip, QFileDialog, QStyledItemDelegate,
                              QStyle)
-from PyQt6.QtGui import QPixmap, QAction, QTextDocument, QTextOption, QPainter, QIcon
+from PyQt6.QtGui import QPixmap, QAction, QTextDocument, QTextOption, QPainter, QIcon, QFontDatabase
 from PyQt6.QtCore import (Qt, QPoint, QPropertyAnimation, QEasingCurve, QRect, QEvent, 
                             QSize, QSequentialAnimationGroup, QPointF, QVariantAnimation)
 import json
 
 """
+## Windows
 pyinstaller --noconsole --onefile --icon="icon.ico" --add-data "NanumGothic.ttf;." --name "CharacterMemoPad" custom_memo_app_qt.py
+
+## Macos
+pyinstaller --windowed \
+  --name "MemoApp" \
+  --icon "icon.icns" \
+  --add-data "assets:assets" \
+  --add-data "NanumGothic.ttf:." \
+  custom_memo_app_qt.py
+
+## Macos Previlidge
+xattr -rd com.apple.quarantine /Applications/MemoApp.app
+
+Safe cross-platform pathing for PyInstaller:
+- get_resource_path: for bundled assets (fonts, icons, images)
+- get_data_path: for user data (memos, settings) - goes up 3 levels on macOS .app
 """
 
+
+
+
+def get_resource_path():
+    """
+    Returns the path to bundled resources (assets, fonts, icons).
+    Works for both development and PyInstaller frozen mode.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle
+        return sys._MEIPASS
+    else:
+        # Running as script
+        return os.path.dirname(__file__)
+
+
+def get_data_path():
+    """
+    Returns the path for user data (memos directory).
+    On macOS .app bundles, goes up 3 levels to reach the .app's parent directory.
+    """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller bundle
+        if sys.platform == 'darwin':
+            # macOS .app bundle: Contents/MacOS/executable -> go up 3 levels
+            return os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        else:
+            # Windows/Linux: same directory as executable
+            return os.path.dirname(sys.executable)
+    else:
+        # Development mode
+        return os.path.dirname(__file__)
 
 
 class WordWrapDelegate(QStyledItemDelegate):
@@ -25,6 +73,7 @@ class WordWrapDelegate(QStyledItemDelegate):
     def __init__(self, parent, main_app):
         super().__init__(parent)
         self.main_app = main_app
+
 
 
     def paint(self, painter, option, index):
@@ -178,13 +227,14 @@ class CustomMemoApp(QMainWindow):
         """
         애니메이션, UI 구성 요소, 테마 및 초기 설정을 초기화하는 생성자.
         """
+
         super().__init__()
 
-
-
         # 1. 초기 창 설정 및 프레임리스 테두리 제거
-        self.base_path = get_base_path()
-        self.setWindowIcon(QIcon(os.path.join(self.base_path, 'icon.ico')))
+        self.resource_path = get_resource_path()
+        self.data_path = get_data_path()
+        self.setWindowIcon(QIcon(os.path.join(self.resource_path, 'icon.ico')))
+
         self.setWindowTitle("CharacterMemoPad")
 
         self.setMinimumSize(500, 250)
@@ -194,7 +244,12 @@ class CustomMemoApp(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         # 2. 전역 변수 초기화
-        self.memos_dir = os.path.join(self.base_path, 'memos')
+        self.memos_dir = os.path.join(self.data_path, 'memos')
+
+        # 2.1 폰트 로드 (NanumGothic)
+        font_path = os.path.join(self.resource_path, 'NanumGothic.ttf')
+        if os.path.exists(font_path):
+            QFontDatabase.addApplicationFont(font_path)
 
         self.current_file_path = None
         self.always_on_top = False
@@ -337,7 +392,7 @@ class CustomMemoApp(QMainWindow):
         assets 폴더를 스캔하여 첫 번째 캐릭터 폴더 이름을 반환.
         없으면 None 반환.
         """
-        assets_dir = os.path.join(self.base_path, 'assets')
+        assets_dir = os.path.join(self.resource_path, 'assets')
         if os.path.exists(assets_dir):
             for name in os.listdir(assets_dir):
                 path = os.path.join(assets_dir, name)
@@ -458,7 +513,7 @@ class CustomMemoApp(QMainWindow):
         """
         menu = QMenu(self)
         menu.setStyleSheet(f"QMenu {{ background-color: {self.THEME_BG_COLOR}; color: {self.THEME_TEXT_COLOR}; border: 1px solid {self.THEME_TEXT_COLOR}; }} QMenu::item:selected {{ background-color: {self.THEME_TEXT_COLOR}; color: {self.THEME_BG_COLOR}; }}")
-        assets_dir = os.path.join(self.base_path, 'assets')
+        assets_dir = os.path.join(self.resource_path, 'assets')
         if os.path.exists(assets_dir):
             for char_name in os.listdir(assets_dir):
                 if os.path.isdir(os.path.join(assets_dir, char_name)):
@@ -468,11 +523,13 @@ class CustomMemoApp(QMainWindow):
         menu.exec(self.char_menu_btn.mapToGlobal(QPoint(0, self.char_menu_btn.height())))
 
 
+
     def load_character_theme(self, character_name):
         """
         캐릭터 폴더 내 theme.json 파일을 읽어 배경색, 글자색, 손 간격 데이터를 반환.
         """
-        assets_path = os.path.join(self.base_path, 'assets', character_name)
+        assets_path = os.path.join(self.resource_path, 'assets', character_name)
+
         theme_file = os.path.join(assets_path, 'theme.json')
         default_theme = {'background': 'yellow', 'text': 'black', 'hand_gap': 100}
         if os.path.exists(theme_file):
@@ -485,6 +542,7 @@ class CustomMemoApp(QMainWindow):
 
 
 
+
     def change_character(self, character_name):
         """
         선택된 캐릭터에 맞게 상단 씬(Scene)의 이미지를 교체하고 테마를 적용함.
@@ -493,7 +551,8 @@ class CustomMemoApp(QMainWindow):
         self.current_character = character_name
         theme = self.load_character_theme(character_name)
         self.scene.clear()
-        assets_path = os.path.join(self.base_path, 'assets', character_name)
+        assets_path = os.path.join(self.resource_path, 'assets', character_name)
+
 
 
         # 머리(Head) 및 양손(Hand) 이미지 로드
@@ -613,8 +672,10 @@ class CustomMemoApp(QMainWindow):
             self.THEME_TEXT_COLOR = text_color
 
 
+
         # QSizeGrip 커스텀 이미지 존재 여부 확인 (캐릭터별 assets 폴더 내 grip.png)
-        grip_path = os.path.join(self.base_path, 'assets', self.current_character, 'Grip.png').replace('\\', '/')
+        grip_path = os.path.join(self.resource_path, 'assets', self.current_character, 'Grip.png').replace('\\', '/')
+
 
         if os.path.exists(grip_path):
             grip_style = f"QSizeGrip {{ image: url({grip_path}); width: 20px; height: 20px; }}"
@@ -722,17 +783,7 @@ class CustomMemoApp(QMainWindow):
         self.top_bar.raise_()
         self.change_character(self.current_character)
 
-def get_base_path():
-    """
-    Returns the directory containing the executable or script.
-    Handles both development (script) and PyInstaller (bundled .exe) modes.
-    """
-    if getattr(sys, 'frozen', False):
-        # Running as a bundled executable
-        return os.path.dirname(sys.executable)
-    else:
-        # Running as a script
-        return os.path.dirname(__file__)
+
 
 if __name__ == "__main__":
     # 애플리케이션 인스턴스 생성 및 창 표시
