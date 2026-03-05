@@ -12,7 +12,8 @@ from PyQt6.QtCore import (Qt, QPoint, QPropertyAnimation, QEasingCurve, QRect, Q
                             QSize, QSequentialAnimationGroup, QPointF, QVariantAnimation)
 import json
 """
-pyinstaller --noconsole --windowed --icon="icon.icns" --name "CharacterMemoPad" --add-data "assets:assets" --add-data "memos:memos" --add-data "NanumGothic.ttf:." custom_memo_app_mac.py
+pyinstaller --noconsole --windowed --icon="icon.icns" --name "CharacterMemoPad" --add-data "assets:assets" --add-data "memos:memos" --add-data "NanumGothic.ttf:." --hidden-import "PyQt6.sip" --hidden-import "PyQt6.QtCore" --hidden-import "PyQt6.QtGui" --hidden-import "PyQt6.QtWidgets" custom_memo_app_mac.py
+
 """
 
 

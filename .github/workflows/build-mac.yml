@@ -26,6 +26,7 @@ jobs:
         pip install -r requirements.txt
     
 
+
     - name: Build macOS app with PyInstaller
       run: |
         pyinstaller --noconsole --windowed \
@@ -34,7 +35,12 @@ jobs:
           --add-data "assets:assets" \
           --add-data "memos:memos" \
           --add-data "NanumGothic.ttf:." \
+          --hidden-import "PyQt6.sip" \
+          --hidden-import "PyQt6.QtCore" \
+          --hidden-import "PyQt6.QtGui" \
+          --hidden-import "PyQt6.QtWidgets" \
           custom_memo_app_mac.py
+
 
     
 
